@@ -19,5 +19,3 @@ CREATE TABLE Transactions (
     price_per_unit FLOAT(7),
     timestamp TIMESTAMP NOT NULL DEFAULT now()
 );
-
-DROP TABLE IF EXISTS Transactions;

@@ -1,19 +1,27 @@
-package com.example.crypto_trading_sim.services;
+package com.example.crypto_trading_sim.crypto.api;
 import com.example.crypto_trading_sim.crypto.api.SubscribeRequest;
 import com.example.crypto_trading_sim.crypto.api.SubscribeRequestProvider;
 import com.example.crypto_trading_sim.crypto.api.enums.CryptoApiEventTriggerEnum;
+import com.example.crypto_trading_sim.crypto.data.TickerData;
+import com.example.crypto_trading_sim.crypto.data.TickerDataStorage;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.java_websocket.client.WebSocketClient;
 import org.java_websocket.handshake.ServerHandshake;
+import org.springframework.boot.configurationprocessor.json.JSONArray;
+import org.springframework.boot.configurationprocessor.json.JSONObject;
+
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Arrays;
 
 public class CryptoApiSocketClient extends WebSocketClient {
 
-    public CryptoApiSocketClient(URI serverUri) {
+    private final TickerDataStorage tickerDataStorage;
+
+    public CryptoApiSocketClient(URI serverUri, TickerDataStorage tickerDataStorage) {
         super(serverUri);
+        this.tickerDataStorage = tickerDataStorage;
     }
 
     @Override
@@ -21,8 +29,8 @@ public class CryptoApiSocketClient extends WebSocketClient {
         System.out.println("Connected to WebSocket");
 
         SubscribeRequest subscribeRequest = SubscribeRequestProvider.subscribeTicker(
-            Arrays.asList("BTC/USD", "MATIC/GBP"),
-            CryptoApiEventTriggerEnum.BEST_BID_OFFER,
+            Arrays.asList("BTC/USD"),
+            CryptoApiEventTriggerEnum.ON_EVERY_TRADE,
             true
         );
 
@@ -38,7 +46,22 @@ public class CryptoApiSocketClient extends WebSocketClient {
 
     @Override
     public void onMessage(String message) {
-        System.out.println("Received: " + message);
+        try {
+            JSONArray dataArray = new JSONObject(message).getJSONArray("data");
+
+            for (int i = 0; i < dataArray.length(); i++) {
+                JSONObject dataForTicker = dataArray.getJSONObject(i);
+                String symbol = dataForTicker.getString("symbol");
+                double bid = dataForTicker.getDouble("bid");
+                double ask = dataForTicker.getDouble("ask");
+
+                TickerData newTickerData = new TickerData(symbol, bid);
+                tickerDataStorage.updateTicker(symbol, newTickerData);
+            }
+
+        } catch (Exception e) {
+            System.err.println("Failed to parse message: " + message);
+        }
     }
 
     @Override
